@@ -32,7 +32,13 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 	return npImage;
 
 };
+
+
 PXCSenseManager *pxcSeneManager;
+PyArrayObject *frameIR;
+PyArrayObject *frameRGB;
+PyArrayObject *frameDepth;
+
 static PyObject* getDev(PyObject* self, PyObject* args)
 
 {
@@ -58,11 +64,11 @@ static PyObject* relDev(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", 1);
 }
 
-static PyObject* getframe(PyObject* self, PyObject* args)
+static PyObject* getframes(PyObject* self, PyObject* args)
 {
-	PyArrayObject *frameIR;
-	PyArrayObject *frameRGB;
-	PyArrayObject *frameDepth;
+	//PyArrayObject *frameIR;
+	//PyArrayObject *frameRGB;
+	//PyArrayObject *frameDepth;
 	
 
 
@@ -73,12 +79,31 @@ static PyObject* getframe(PyObject* self, PyObject* args)
 	frameRGB = PXC2numPy(sample->color, PXCImage::PIXEL_FORMAT_RGB24);
 	frameDepth = PXC2numPy(sample->depth, PXCImage::PIXEL_FORMAT_DEPTH_F32);
 	
-	pxcSeneManager->ReleaseFrame();
 	
-	return PyArray_Return(frameDepth);
+	return Py_BuildValue("i", 1);
+	
 }
 
+static PyObject* relframes(PyObject* self, PyObject* args)
+{
+	pxcSeneManager->ReleaseFrame();
+	return Py_BuildValue("i", 1);
+}
 
+static PyObject* getIR(PyObject* self, PyObject* args)
+{
+	return PyArray_Return(frameIR);
+}
+
+static PyObject* getRGB(PyObject* self, PyObject* args)
+{
+	return PyArray_Return(frameRGB);
+}
+
+static PyObject* getDepth(PyObject* self, PyObject* args)
+{
+	return PyArray_Return(frameDepth);
+}
 
 static PyObject* OpenGetClose(PyObject* self, PyObject* args)
 {
@@ -118,9 +143,13 @@ static PyObject* OpenGetClose(PyObject* self, PyObject* args)
 
 PyMethodDef SpamMethods[] = 
 {
-	{ "getframe", (PyCFunction)getframe, METH_VARARGS },
+	{ "getframe", (PyCFunction)getframes, METH_VARARGS },
+	{ "relframe", (PyCFunction)relframes, METH_VARARGS },
 	{ "getdev", (PyCFunction)getDev, METH_VARARGS },
 	{ "reldev", (PyCFunction)relDev, METH_VARARGS },
+	{ "getdepth", (PyCFunction)getDepth, METH_VARARGS },
+	{ "getrgb", (PyCFunction)getRGB, METH_VARARGS },
+	{ "getIR", (PyCFunction)getIR, METH_VARARGS },
 	{0,0,0}
 };
 
