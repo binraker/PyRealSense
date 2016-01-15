@@ -1,5 +1,5 @@
 # PyRealSense
-Python control and capture things
+Python control and capture things for Intel RealSense camaera (tested on F200)
 
 A realy rather ropey extension for python to control and capture frames from the Intel realsense camera.
 
