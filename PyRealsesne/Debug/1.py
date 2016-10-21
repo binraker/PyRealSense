@@ -13,25 +13,16 @@ global  markerf
 if __name__ == '__main__':
   
     spam.getdev()
-        
-    spam.getframe()
-    frame = spam.getdepth() 
-    framec = frame.copy()
-    cv2.imshow('Test Frame', framec)
-    while True:
 
-        framec = frame/1000  
-        cv2.imshow('Test Frame', framec)
-        
+    while True:         
+        spam.getframe()
+        frame = spam.getdepth()
+    
+        cv2.imshow('Test Frame', frame/1000)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        spam.relframe()    
-        spam.getframe()
-
-        frame = spam.getdepth()
-        framec = frame.copy()
-
-
+        spam.relframe()
     # When everything done, release the capture
     spam.relframe()
     spam.reldev()
