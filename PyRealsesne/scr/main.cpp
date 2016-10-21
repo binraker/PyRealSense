@@ -1,5 +1,13 @@
 #include "include.h"
 
+PXCSenseManager *sm;
+PyArrayObject *frameIR;
+PyArrayObject *frameRGB;
+PyArrayObject *frameDepth;
+static PyObject *RealSenseError;
+pxcStatus sts;
+PXCCapture::Sample *sample;
+
 PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 {
 	PXCImage::ImageData data;
@@ -28,16 +36,13 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 
 
 	PyArrayObject *npImage = (PyArrayObject *)PyArray_SimpleNewFromData(shape, dims, type, data.planes[0]);
+	//PyArrayObject *npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	//npImage = data.planes[0];
+	
 
 	return npImage;
 
 };
-
-
-PXCSenseManager *pxcSeneManager;
-PyArrayObject *frameIR;
-PyArrayObject *frameRGB;
-PyArrayObject *frameDepth;
 
 static PyObject* getDev(PyObject* self, PyObject* args)
 
@@ -47,46 +52,45 @@ static PyObject* getDev(PyObject* self, PyObject* args)
 	float frameRate = 60;
 
 	//Initilize camera
-	pxcSeneManager = PXCSenseManager::CreateInstance();
+	sm = PXCSenseManager::CreateInstance();
+
 
 	//enable streams
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
 
-	pxcSeneManager->Init();
-	return Py_BuildValue("i", 1);
+	sts = sm->Init();
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to initialize camera");
+	return Py_BuildValue("i", sts);
 }
 
 static PyObject* relDev(PyObject* self, PyObject* args)
 {
-	pxcSeneManager->Release();
+	sm->Release();
 	return Py_BuildValue("i", 1);
 }
 
 static PyObject* getframes(PyObject* self, PyObject* args)
 {
-	//PyArrayObject *frameIR;
-	//PyArrayObject *frameRGB;
-	//PyArrayObject *frameDepth;
-	
-
-
-	pxcSeneManager->AcquireFrame();
-	PXCCapture::Sample *sample = pxcSeneManager->QuerySample();
+	//sm->FlushFrame();
+	sts = sm->AcquireFrame();
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to aquire a a frame");
+	sample = sm->QuerySample();
 	//-
 	frameIR = PXC2numPy(sample->ir, PXCImage::PIXEL_FORMAT_Y8);
 	frameRGB = PXC2numPy(sample->color, PXCImage::PIXEL_FORMAT_RGB24);
 	frameDepth = PXC2numPy(sample->depth, PXCImage::PIXEL_FORMAT_DEPTH_F32);
-	
-	
 	return Py_BuildValue("i", 1);
-	
 }
 
 static PyObject* relframes(PyObject* self, PyObject* args)
 {
-	pxcSeneManager->ReleaseFrame();
+	sm->FlushFrame();
+	//sample->ReleaseImages();
+	sm->ReleaseFrame();
 	return Py_BuildValue("i", 1);
 }
 
@@ -117,31 +121,31 @@ static PyObject* OpenGetClose(PyObject* self, PyObject* args)
 	PyArrayObject *frameDepth;
 
 	//Initilize camera
-	PXCSenseManager *pxcSeneManager = PXCSenseManager::CreateInstance();
+	PXCSenseManager *sm = PXCSenseManager::CreateInstance();
 
 	//enable streams
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
-	pxcSeneManager->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
+	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
 
-	pxcSeneManager->Init();
+	sm->Init();
 
-	pxcSeneManager->AcquireFrame();
-	PXCCapture::Sample *sample = pxcSeneManager->QuerySample();
+	sm->AcquireFrame();
+	PXCCapture::Sample *sample = sm->QuerySample();
 	//-
 	frameIR = PXC2numPy(sample->ir, PXCImage::PIXEL_FORMAT_Y8);
 	frameRGB = PXC2numPy(sample->color, PXCImage::PIXEL_FORMAT_RGB24);
 	frameDepth = PXC2numPy(sample->depth, PXCImage::PIXEL_FORMAT_DEPTH_F32);
 
-	pxcSeneManager->ReleaseFrame();
+	sm->ReleaseFrame();
 
-	pxcSeneManager->Release();
+	sm->Release();
 
 	return PyArray_Return(frameRGB);
 
 }
 
-PyMethodDef SpamMethods[] = 
+PyMethodDef RealSenseMethods[] = 
 {
 	{ "getframe", (PyCFunction)getframes, METH_VARARGS },
 	{ "relframe", (PyCFunction)relframes, METH_VARARGS },
@@ -158,7 +162,9 @@ initspam(void)
 {
 	PyObject *m;
 
-	m = Py_InitModule("spam", SpamMethods);
+	RealSenseError = PyErr_NewException("RealSenseError.error", NULL, NULL);
+	Py_INCREF(RealSenseError);
+	m = Py_InitModule("spam", RealSenseMethods);
 	import_array();
 	if (m == NULL)
 		return;
