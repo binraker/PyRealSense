@@ -1,7 +1,7 @@
 //run test file with execfile('2.py')
 
 #include "include.h"
-
+#include <stdlib.h>
 
 
 
@@ -23,21 +23,49 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 	if (!format)
 		format = pxcImage->QueryInfo().format;
 
+	//bits commented out in these if statements tried to put data.planes[0] into a new array and return that. didn't even get first frame!!
+	//PyArrayObject *npImage;
 	int type;
 	if (format == PXCImage::PIXEL_FORMAT_Y8)
+	{
 		type = NPY_UBYTE;
+		/*unsigned char temp;
+		temp = (unsigned char)malloc(sizeof(unsigned char)*height*width);
+		temp = (unsigned char)data.planes[0];
+		npImage = (PyArrayObject *)PyArray_SimpleNewFromData(shape, dims, type, &temp);
+		//free(&temp);*/
+	}
 	else if (format == PXCImage::PIXEL_FORMAT_RGB24)
 	{
 		type = NPY_UBYTE;
 		dims[2] = 3;
 		shape = 3;
+		/*unsigned char temp;
+		temp = (unsigned char)malloc(sizeof(unsigned char)*height*width*3);
+		temp = (unsigned char)data.planes[0];
+		npImage = (PyArrayObject *)PyArray_SimpleNewFromData(shape, dims, type, &temp);
+		//free(&temp);*/
+	
 	}
 	else if (format == PXCImage::PIXEL_FORMAT_DEPTH_F32)
+	{
 		type = NPY_FLOAT32;
 
+	/*	long temp;
+		temp = (long)malloc(sizeof(long)*height*width);
+		temp = (long)data.planes[0];
+		npImage = (PyArrayObject *)PyArray_SimpleNewFromData(shape, dims, type, &temp);
+		//free(&temp);*/
+	}
+
+	
+
 	PyArrayObject *npImage = (PyArrayObject *)PyArray_SimpleNewFromData(shape, dims, type, data.planes[0]);
+	
+	
+	//PyArray_ENABLEFLAGS(npImage, NPY_ARRAY_OWNDATA); //tried puttin it here, still didn't work
 	pxcImage->ReleaseAccess(&data);
-	PyArray_ENABLEFLAGS(npImage, NPY_ARRAY_OWNDATA);
+	
 	return npImage;
 
 };//helper function to convert PCX into numpy array
