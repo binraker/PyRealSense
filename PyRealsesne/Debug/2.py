@@ -18,12 +18,15 @@ if __name__ == '__main__':
         
         frame = spam.getframe()
         
-    
-        cv2.imshow('Test Frame', frame[0]/1000)
+        cv2.namedWindow("Depth")
+        cv2.imshow('Depth', frame[0]/1000)
+        cv2.namedWindow("RGB")
+        cv2.imshow('RGB', frame[1])
+        cv2.namedWindow("IR")
+        cv2.imshow('IR', frame[2])
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     # When everything done, release the capture
-    spam.relframe()
     spam.reldev()
     cv2.destroyAllWindows()
