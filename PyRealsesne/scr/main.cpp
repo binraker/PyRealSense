@@ -2,21 +2,9 @@
 
 #include "include.h"
 
-
-
-
-PXCSenseManager *sm;
+PXCSenseManager *sm; 
 static PyObject *RealSenseError;
 pxcStatus sts;
-pxcBYTE* DepthData;
-pxcBYTE* IRData;
-pxcBYTE* RGBData;
-std::vector<pxcBYTE> Depth;
-std::vector<pxcBYTE> IR;
-std::vector<pxcBYTE> RGB;
-
-
-
 
 PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 {
@@ -32,18 +20,13 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 	if (!format)
 		format = pxcImage->QueryInfo().format;
 
-
 	PyArrayObject *npImage;
 	int type;
 	if (format == PXCImage::PIXEL_FORMAT_Y8)
 	{
 		type = NPY_UBYTE;
-		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
-		memcpy(npImage->data, data.planes[0], size);
 
-		PyArray_ENABLEFLAGS(npImage, NPY_OWNDATA);
-		pxcImage->ReleaseAccess(&data);
-		return npImage;
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
 	}
 	else if (format == PXCImage::PIXEL_FORMAT_RGB24)
 	{
@@ -53,12 +36,6 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 		size *= 3;
 
 		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
-		memcpy(npImage->data, data.planes[0], size);
-		PyArray_ENABLEFLAGS(npImage, NPY_OWNDATA);
-		pxcImage->ReleaseAccess(&data);
-		
-		return npImage;
-	
 	}
 	else if (format == PXCImage::PIXEL_FORMAT_DEPTH_F32)
 	{
@@ -66,21 +43,19 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 		size *= sizeof(float);
 
 		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
-		memcpy(npImage->data, data.planes[0], size);
-		PyArray_ENABLEFLAGS(npImage, NPY_OWNDATA);
-		pxcImage->ReleaseAccess(&data);
-
-		return npImage;
 	}
+	memcpy(npImage->data, data.planes[0], size);
+	PyArray_ENABLEFLAGS(npImage, NPY_OWNDATA);
+	pxcImage->ReleaseAccess(&data);
 
+	return npImage;
 }//helper function to convert PCX into numpy array
-
 
 
 static PyObject* getDev(PyObject* self, PyObject* args)
 
 {
-	//TODO: let you choose camera settings and what frmaes you want to capture
+	//TODO: let you choose camera settings and what frames you want to capture
 	int width = 640;
 	int height = 480;
 	float frameRate = 60;
@@ -98,14 +73,13 @@ static PyObject* getDev(PyObject* self, PyObject* args)
 		PyErr_SetString(RealSenseError, "Failed to initialize camera");
 	return Py_BuildValue("i", sts);
 
-}// get device
+}// get device// get device
 
 static PyObject* relDev(PyObject* self, PyObject* args)
 {
 	sm->Release();
 	return Py_BuildValue("i", 1);
 }//release device
-
 
 static PyObject* getframes(PyObject* self, PyObject* args) {
 	//TODO:add ability to select what frames you want
@@ -127,6 +101,7 @@ static PyObject* getframes(PyObject* self, PyObject* args) {
 	PyArray_ENABLEFLAGS(frameDepthl, NPY_OWNDATA| NPY_ARRAY_ENSURECOPY);
 	PyArray_ENABLEFLAGS(frameIRl, NPY_OWNDATA | NPY_ARRAY_ENSURECOPY);
 	PyArray_ENABLEFLAGS(frameRGBl, NPY_OWNDATA | NPY_ARRAY_ENSURECOPY);
+
 	PyObject *rslt = PyTuple_New(3);
 	PyTuple_SetItem(rslt, 0, (PyObject*)frameDepthl);
 	PyTuple_SetItem(rslt, 1, (PyObject*)frameIRl);
@@ -136,20 +111,15 @@ static PyObject* getframes(PyObject* self, PyObject* args) {
 	sm->ReleaseFrame();
 	return rslt;
 
-
-
 }//get frame
 
-
 //stuff to link functions to python.
-
 
 PyMethodDef RealSenseMethods[] = 
 {
 	{ "getframe", (PyCFunction)getframes, METH_VARARGS },
 	{ "getdev", (PyCFunction)getDev, METH_VARARGS },
 	{ "reldev", (PyCFunction)relDev, METH_VARARGS },
-	{ "test", (PyCFunction)relDev, METH_VARARGS },
 	{0,0,0}
 };
 

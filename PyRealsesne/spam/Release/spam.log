@@ -1,9 +1,11 @@
 ﻿  main.cpp
 c:\python27\lib\site-packages\numpy\core\include\numpy\npy_1_7_deprecated_api.h(12): warning Msg: Using deprecated NumPy API, disable it by #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-     Creating library C:\Users\Peter\Documents\Visual Studio 2015\Projects\PyRealsesne\Release\spam.lib and object C:\Users\Peter\Documents\Visual Studio 2015\Projects\PyRealsesne\Release\spam.exp
+..\scr\main.cpp(132): warning C4002: too many actual parameters for macro 'Py_InitModule'
+     Creating library C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Release\spam.lib and object C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Release\spam.exp
   Generating code
-  2 of 24 functions ( 8.3%) were compiled, the rest were copied from previous compilation.
-    1 functions were new in current compilation
-    0 functions had inline decision re-evaluated but remain unchanged
-  Finished generating code
-  spam.vcxproj -> C:\Users\Peter\Documents\Visual Studio 2015\Projects\PyRealsesne\Release\spam.pyd
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(47): error C4703: potentially uninitialized local pointer variable 'npImage' used
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(97): error C4703: potentially uninitialized local pointer variable 'npImage' used
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(98): error C4703: potentially uninitialized local pointer variable 'npImage' used
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(99): error C4703: potentially uninitialized local pointer variable 'npImage' used
+  All 20 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+LINK : fatal error LNK1257: code generation failed

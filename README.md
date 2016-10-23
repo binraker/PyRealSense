@@ -9,13 +9,9 @@ Based on this video https://www.youtube.com/watch?v=wIkIdjN6Oyw but returning a 
 
 TODO:
 
-Fix access violation issue generated when using OWN_DATA flag to prevent memory leak
-
 Add error handeling (virtually none in there at the moment!!)
 
 Add ability to set camera capture params and which streams to enable
-
-Done: Make getframe() return data from all cameras
 
 Just generally  make it good!!
 
