@@ -15,11 +15,3 @@
 
 static char module_docstring[] =
 "This module allows control of Intel RealSense cameras";
-
-
-
-/*run test file with:
-	execfile('2.py')
-
-
-*/

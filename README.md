@@ -7,6 +7,8 @@ Writtien and compiled in Visual Studio 2015
 
 Based on this video https://www.youtube.com/watch?v=wIkIdjN6Oyw but returning a numpy array.
 
+Demo file: /Debug/test.py
+
 TODO:
 
 Add error handeling (virtually none in there at the moment!!)

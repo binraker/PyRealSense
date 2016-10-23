@@ -1,5 +1,6 @@
-//run test file with execfile('2.py')
-
+/*run test file with:
+execfile('test.py')
+*/
 #include "include.h"
 
 PXCSenseManager *sm; 
