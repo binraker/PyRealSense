@@ -4,7 +4,7 @@
 #endif
 
 #include <Python.h>
-#include <stdlib.h>
+#include <vector>
 
 #ifdef _DEBUG_WAS_DEFINED
 #define _DEBUG
@@ -19,6 +19,7 @@ static char module_docstring[] =
 
 
 /*run test file with:
-execfile('2.py')
+	execfile('2.py')
+
 
 */
