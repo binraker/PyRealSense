@@ -52,7 +52,6 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 	return npImage;
 }//helper function to convert PCX into numpy array
 
-
 static PyObject* getDev(PyObject* self, PyObject* args)
 
 {
@@ -64,15 +63,64 @@ static PyObject* getDev(PyObject* self, PyObject* args)
 	//Initilize camera
 	sm = PXCSenseManager::CreateInstance();
 
+	
+		
 	//enable streams
 	sm->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
 	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
 	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
 
+
 	sts = sm->Init();
 	if (sts != PXC_STATUS_NO_ERROR)
-		PyErr_SetString(RealSenseError, "Failed to initialize camera");
+		PyErr_SetString(RealSenseError, "Failed to initialize depth camera");
+
+
+//TODO: expose these settings to python.
+
+
+	PXCCapture::Device *cp = sm->QueryCaptureManager()->QueryDevice();
+/*
+motion to range tradeoff
+0 (short exposure, short range, and better motion) to 100 (long exposure and long range.)
+*/
+	sts = cp->SetIVCAMMotionRangeTradeOff(100);
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to set range of depth camera");
+/*
+projected pattern setting.
+*/
+	sts = cp->SetIVCAMAccuracy(PXCCapture::Device::IVCAM_ACCURACY_COARSE);
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to set accuracy of depth camera");
+	
+	/*
+Filter
+0 Skeleton: Reports the depth data for high fidelity (high confidence) pixels only, and all other pixels as invalid. For SR300, the depth range is up to 4m.
+1 Raw: Raw depth image without any post-processing filters. For SR300, the depth range is up to 4m.
+2 Raw + Gradients filter: Raw depth image  with the gradient filter applied. For SR300, the depth range is up to 4m.
+3 Very close range :Very low smoothing effect with high sharpness, accuracy levels, and low noise artifacts. Good for any distances of up to 350mm for F200, and up to 2m for SR300.
+4 Close range:Low smoothing effect with high sharpness and accuracy levels. The noise artifacts are optimized for distances between 350mm to 550mm for F200, and up to 2m for SR300.
+5 Mid-range [Default] :Moderate smoothing effect optimized for distances between 550mm to 850mm for F200 and up to 2m for SR300 to balance between good sharpness level, high accuracy and moderate noise artifacts.
+6 Far range :High smoothing effect for distances between 850mm to 1000mm for F200 and up to 4m for SR300 bringing good accuracy with moderate sharpness level.
+7 Very far range :Very high smoothing effect to bring moderate accuracy level for distances above 1m for F200, and 0.8-2.5m (up to 4m) for SR300. Use together with the MotionRangeTradeOff property to increase the depth range.
+*/
+	sts = cp->SetIVCAMFilterOption(5);
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to set filter of depth camera");
+
+	/*
+	laser power 0 (lowest) to 16 (highest)
+	*/
+	sts = cp->SetIVCAMLaserPower(16);
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to set filter of depth camera");
+
 	return Py_BuildValue("i", sts);
+
+
+	
+
 
 }// get device// get device
 
@@ -121,16 +169,17 @@ PyMethodDef RealSenseMethods[] =
 	{ "getframe", (PyCFunction)getframes, METH_VARARGS },
 	{ "getdev", (PyCFunction)getDev, METH_VARARGS },
 	{ "reldev", (PyCFunction)relDev, METH_VARARGS },
+
 	{0,0,0}
 };
 
 PyMODINIT_FUNC
-initspam(void)
+initPyRealSense(void)
 {
 	PyObject *m;
 	RealSenseError = PyErr_NewException("RealSenseError.error", NULL, NULL);
 	Py_INCREF(RealSenseError);
-	m = Py_InitModule("spam", RealSenseMethods, module_docstring);
+	m = Py_InitModule("PyRealSense", RealSenseMethods, module_docstring);
 	import_array();
 	if (m == NULL)
 		return;
