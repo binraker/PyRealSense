@@ -1,5 +1,5 @@
 ﻿  main.cpp
 c:\python27\lib\site-packages\numpy\core\include\numpy\npy_1_7_deprecated_api.h(12): warning Msg: Using deprecated NumPy API, disable it by #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(132): warning C4002: too many actual parameters for macro 'Py_InitModule'
-cl : Command line warning D9028: minimal rebuild failure, reverting to normal build
-  spam.vcxproj -> C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Debug\spam.pyd
+     Creating library C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Debug\PyRealSense.lib and object C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Debug\PyRealSense.exp
+  spam.vcxproj -> C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Debug\PyRealSense.pyd

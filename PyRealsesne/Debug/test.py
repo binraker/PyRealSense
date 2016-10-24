@@ -6,17 +6,17 @@ Created on Sat Jan 09 17:15:02 2016
 """
 
 import cv2
-import spam
+import PyRealSense
 
 global  markerf
 
 if __name__ == '__main__':
   
-    spam.getdev()
+    PyRealSense.getdev()
 
     while True:         
         
-        frame = spam.getframe()
+        frame = PyRealSense.getframe()
         
         cv2.namedWindow("Depth")
         cv2.imshow('Depth', frame[0]/1000)
@@ -29,5 +29,5 @@ if __name__ == '__main__':
             break
        # spam.relframe()
     # When everything done, release the capture
-    spam.reldev()
+    PyRealSense.reldev()
     cv2.destroyAllWindows()
