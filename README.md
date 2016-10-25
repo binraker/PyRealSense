@@ -17,5 +17,7 @@ Add ability to set camera capture params and which streams to enable
 
 Just generally  make it good!!
 
+run test file with:
+execfile('test.py')
 
 

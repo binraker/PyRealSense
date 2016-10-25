@@ -1,4 +1,7 @@
 ﻿  main.cpp
 c:\python27\lib\site-packages\numpy\core\include\numpy\npy_1_7_deprecated_api.h(12): warning Msg: Using deprecated NumPy API, disable it by #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(153): warning C4002: too many actual parameters for macro 'Py_InitModule'
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(650): warning C4244: 'argument': conversion from 'int' to 'pxcF32', possible loss of data
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(800): warning C4002: too many actual parameters for macro 'Py_InitModule'
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(323): warning C4715: 'getColorPowerLineFrequency': not all control paths return a value
+c:\users\peter\documents\github\pyrealsense\pyrealsesne\scr\main.cpp(418): warning C4715: 'getMirrorMode': not all control paths return a value
   spam.vcxproj -> C:\Users\Peter\Documents\GitHub\PyRealSense\PyRealsesne\Debug\PyRealSense.pyd
