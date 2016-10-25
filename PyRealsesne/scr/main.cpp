@@ -67,6 +67,7 @@ static PyObject* getDev(PyObject* self, PyObject* args)
 	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
 
 	sts = sm->Init();
+	
 	if (sts != PXC_STATUS_NO_ERROR)
 		PyErr_SetString(RealSenseError, "Failed to initialize depth camera");
 	//get device so that functions that alter harware settings can access them
@@ -401,7 +402,6 @@ static PyObject* getDeviceAllowProfileChange(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("O", cp->QueryDeviceAllowProfileChange() ? Py_True : Py_False);
 }
-
 
 static PyObject* getDepthUnit(PyObject* self, PyObject* args)
 {
@@ -760,7 +760,6 @@ PyMethodDef RealSenseMethods[] =
 	{ "getDepthLowConfidenceValue", (PyCFunction)getDepthLowConfidenceValue, METH_VARARGS },
 	{ "getDepthPrincipalPoint", (PyCFunction)getDepthPrincipalPoint, METH_VARARGS },
 	{ "getDepthSensorRange", (PyCFunction)getDepthSensorRange, METH_VARARGS },
-	{ "getDeviceAllowProfileChange", (PyCFunction)getDeviceAllowProfileChange, METH_VARARGS },
 	{ "getDeviceAllowProfileChange", (PyCFunction)getDeviceAllowProfileChange, METH_VARARGS },
 	{ "getDepthUnit", (PyCFunction)getDepthUnit, METH_VARARGS },
 	{ "getMirrorMode", (PyCFunction)getMirrorMode, METH_VARARGS },
