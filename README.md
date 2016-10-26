@@ -10,6 +10,9 @@ Based on this video https://www.youtube.com/watch?v=wIkIdjN6Oyw but returning a 
 Demo file: /Debug/test.py
 
 TODO:
+Alow getdev() to accept paramiters toselect requested streams and resolutions.
+
+Test setters. 
 
 Add error handeling (virtually none in there at the moment!!)
 
