@@ -1,10 +1,13 @@
 #include "include.h"
 
-PXCSenseManager *sm; 
+PXCSenseManager *sm;
 PXCCapture::Device *cp;
 static PyObject *RealSenseError;
 pxcStatus sts;
+PXCSession *session;
+bool streams[] = { false, false, false }; //depth,IR,colour
 
+//helper functions(proabbly should be more of theses and less copy/past stuff!)
 PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 {
 	PXCImage::ImageData data;
@@ -21,12 +24,22 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 
 	PyArrayObject *npImage;
 	int type;
+
 	if (format == PXCImage::PIXEL_FORMAT_Y8)
 	{
 		type = NPY_UBYTE;
 
 		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
 	}
+
+	else if (format == PXCImage::PIXEL_FORMAT_Y16)
+	{
+		type = NPY_USHORT;
+		size *= 2;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+
 	else if (format == PXCImage::PIXEL_FORMAT_RGB24)
 	{
 		type = NPY_UBYTE;
@@ -36,6 +49,45 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 
 		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
 	}
+	else if (format == PXCImage::PIXEL_FORMAT_RGB32)
+	{
+		type = NPY_UBYTE;
+		dims[2] = 3;
+		shape = 3;
+		size *= 4;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+	else if (format == PXCImage::PIXEL_FORMAT_YUY2)
+	{
+		type = NPY_UBYTE;
+		size *= 2;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+
+	else if (format == PXCImage::PIXEL_FORMAT_DEPTH)
+	{
+		type = NPY_USHORT;
+		size *= 2;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+
+	else if (format == PXCImage::PIXEL_FORMAT_DEPTH_RAW)
+	{
+		type = NPY_USHORT;
+		size *= 2;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+	else if (format == PXCImage::PIXEL_FORMAT_DEPTH_CONFIDENCE)
+	{
+		type = NPY_UBYTE;
+
+		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
+	}
+
 	else if (format == PXCImage::PIXEL_FORMAT_DEPTH_F32)
 	{
 		type = NPY_FLOAT32;
@@ -43,6 +95,9 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 
 		npImage = (PyArrayObject *)PyArray_SimpleNew(shape, dims, type);
 	}
+
+//ToDo: support for N12 and possibly IR relative if i can be bothered
+
 	memcpy(npImage->data, data.planes[0], size);
 	PyArray_ENABLEFLAGS(npImage, NPY_OWNDATA);
 	pxcImage->ReleaseAccess(&data);
@@ -50,28 +105,45 @@ PyArrayObject *PXC2numPy(PXCImage *pxcImage, PXCImage::PixelFormat format)
 	return npImage;
 }//helper function to convert PCX into numpy array
 
-static PyObject* getDev(PyObject* self, PyObject* args)
+PyObject* PropertyInfo2numPy(PXCCapture::Device::PropertyInfo input)
+{
+	PyObject *range = PyList_New(2);
+	PyList_SetItem(range, 0, (PyObject*)Py_BuildValue("f", input.range.min));
+	PyList_SetItem(range, 1, (PyObject*)Py_BuildValue("f", input.range.max));
+	PyObject *ret = PyList_New(4);
+	PyList_SetItem(ret, 0, (PyObject*)range);
+	PyList_SetItem(ret, 1, (PyObject*)Py_BuildValue("f", input.step));
+	PyList_SetItem(ret, 2, (PyObject*)Py_BuildValue("f", input.defaultValue));
+	PyList_SetItem(ret, 3, (PyObject*)Py_BuildValue("O", input.automatic ? Py_True : Py_False));
+	return ret;
+}
 
+//main control functions
+static PyObject* getDev(PyObject* self, PyObject* args)
 {
 	//TODO: let you choose camera settings and what frames you want to capture
+
 	int width = 640;
 	int height = 480;
 	float frameRate = 60;
 
 	//Initilize camera
 	sm = PXCSenseManager::CreateInstance();
-		
+
 	//enable streams
 	sm->EnableStream(PXCCapture::STREAM_TYPE_IR, width, height, frameRate);
 	sm->EnableStream(PXCCapture::STREAM_TYPE_COLOR, width, height, frameRate);
 	sm->EnableStream(PXCCapture::STREAM_TYPE_DEPTH, width, height, frameRate);
 
 	sts = sm->Init();
-	
+
 	if (sts != PXC_STATUS_NO_ERROR)
-		PyErr_SetString(RealSenseError, "Failed to initialize depth camera");
+		PyErr_SetString(RealSenseError, "Failed to initialize cameras");
+
 	//get device so that functions that alter harware settings can access them
 	cp = sm->QueryCaptureManager()->QueryDevice();
+	//fet a sessioon handeler
+	session = sm->QuerySession();
 
 	return Py_BuildValue("i", sts);
 
@@ -116,6 +188,103 @@ static PyObject* getframes(PyObject* self, PyObject* args) {
 
 }//get frame
 
+//functions for general module
+
+static PyObject* getCal(PyObject* self, PyObject* args)
+{
+	PXCProjection *projection = cp->CreateProjection();
+	PXCCalibration *calib = projection->QueryInstance<PXCCalibration>();
+
+	int cam;
+	PXCCapture::StreamType streamtype = PXCCapture::STREAM_TYPE_IR;
+	PXCCalibration::StreamCalibration cal;
+	PXCCalibration::StreamTransform trans;
+
+	if (!PyArg_ParseTuple(args, "i", &cam))
+		return NULL;
+
+	if (cam == 1)
+		streamtype = PXCCapture::STREAM_TYPE_IR;
+	else if (cam == 0)
+		streamtype = PXCCapture::STREAM_TYPE_DEPTH;
+	else if (cam == 2)
+		streamtype = PXCCapture::STREAM_TYPE_COLOR;
+	else
+		PyErr_SetString(RealSenseError, "no such camera to get cal settings for");
+
+	sts = calib->QueryStreamProjectionParameters(streamtype, &cal, &trans);
+	if (sts != PXC_STATUS_NO_ERROR)
+		PyErr_SetString(RealSenseError, "Failed to get cal settings for camera");
+
+	PyObject *focalLength = PyList_New(2);
+	PyList_SetItem(focalLength, 0 ,(PyObject*)Py_BuildValue("f", cal.focalLength.x));
+	PyList_SetItem(focalLength, 1, (PyObject*)Py_BuildValue("f", cal.focalLength.y));
+
+	PyObject *principalPoint = PyList_New(2);
+	PyList_SetItem(principalPoint, 0 ,(PyObject*)Py_BuildValue("f", cal.principalPoint.x));
+	PyList_SetItem(principalPoint, 1, (PyObject*)Py_BuildValue("f", cal.principalPoint.y));
+	
+	PyObject *radialDistortion = PyList_New(3);
+	PyList_SetItem(radialDistortion, 0, (PyObject*)Py_BuildValue("f", cal.radialDistortion[0]));
+	PyList_SetItem(radialDistortion, 1, (PyObject*)Py_BuildValue("f", cal.radialDistortion[1]));
+	PyList_SetItem(radialDistortion, 2, (PyObject*)Py_BuildValue("f", cal.radialDistortion[2]));
+
+	PyObject *tangentialDistortion = PyList_New(2);
+	PyList_SetItem(tangentialDistortion, 0, (PyObject*)Py_BuildValue("f", cal.tangentialDistortion[0]));
+	PyList_SetItem(tangentialDistortion, 1, (PyObject*)Py_BuildValue("f", cal.tangentialDistortion[1]));
+	PyObject *ret = PyList_New(4);
+	
+	PyList_SetItem(ret, 0, focalLength);
+	PyList_SetItem(ret, 1, principalPoint);
+	PyList_SetItem(ret, 2, radialDistortion);
+	PyList_SetItem(ret, 3, tangentialDistortion);
+
+	return ret;
+}
+
+static PyObject* getCoordinateSystem(PyObject* self, PyObject* args)
+{
+	PXCSession::CoordinateSystem system = session->QueryCoordinateSystem();
+	if (system == PXCSession::COORDINATE_SYSTEM_FRONT_DEFAULT)
+		return Py_BuildValue("i", 0);
+	else if (system == PXCSession::COORDINATE_SYSTEM_REAR_DEFAULT)
+		return Py_BuildValue("i", 0);
+	else if (system == PXCSession::COORDINATE_SYSTEM_REAR_OPENCV)
+		return Py_BuildValue("i", 0);
+
+}
+
+static PyObject* setCoordinateSystem(PyObject* self, PyObject* args)
+{
+	int system;
+
+	if (!PyArg_ParseTuple(args, "i", &system))
+		return NULL;
+
+	if (system == 0)
+		sts = session->SetCoordinateSystem(PXCSession::COORDINATE_SYSTEM_FRONT_DEFAULT);
+
+	else if (system == 1)
+		sts = session->SetCoordinateSystem(PXCSession::COORDINATE_SYSTEM_REAR_DEFAULT);
+
+	else if (system == 2)
+		sts = session->SetCoordinateSystem(PXCSession::COORDINATE_SYSTEM_REAR_OPENCV);
+
+	if (sts != PXC_STATUS_NO_ERROR)
+			PyErr_SetString(RealSenseError, "Failed to set coordinate system");
+	return Py_BuildValue("i", 1);
+
+}
+
+static PyObject* getSDKAPI(PyObject* self, PyObject* args)
+{
+	PXCSession::ImplVersion ver;
+	PyObject *rslt = PyTuple_New(2);
+	PyTuple_SetItem(rslt, 0, (PyObject*)ver.major);
+	PyTuple_SetItem(rslt, 1, (PyObject*)ver.minor);
+	return rslt;
+}
+
 //F200 and SR300 functions
 
 static PyObject* getRange(PyObject* self, PyObject* args)
@@ -125,7 +294,15 @@ static PyObject* getRange(PyObject* self, PyObject* args)
 
 static PyObject* getAccuracy(PyObject* self, PyObject* args)
 {
-	return Py_BuildValue("i", cp->QueryIVCAMAccuracy());
+	PXCCapture::Device::IVCAMAccuracy res = cp->QueryIVCAMAccuracy();
+	if (res == PXCCapture::Device::IVCAM_ACCURACY_COARSE)
+		return Py_BuildValue("i", 0);
+	else if (res == PXCCapture::Device::IVCAM_ACCURACY_MEDIAN)
+		return Py_BuildValue("i", 1);
+	else if (res == PXCCapture::Device::IVCAM_ACCURACY_FINEST)
+		return Py_BuildValue("i", 2);
+	else
+		PyErr_SetString(RealSenseError, "camera returned unsuported accuracy");
 }
 
 static PyObject* getFilter(PyObject* self, PyObject* args)
@@ -151,11 +328,11 @@ static PyObject* setRange(PyObject* self, PyObject* args)
 	/*motion to range tradeoff
 		0 (short exposure, short range, and better motion) to 100 (long exposure and long range.)
 		*/
-		sts = cp->SetIVCAMMotionRangeTradeOff(Range);
+	sts = cp->SetIVCAMMotionRangeTradeOff(Range);
 	if (sts != PXC_STATUS_NO_ERROR)
 		PyErr_SetString(RealSenseError, "Failed to set range of depth camera");
 	return Py_BuildValue("i", 1);
-	}
+}
 
 static PyObject* setAccuracy(PyObject* self, PyObject* args)
 {
@@ -187,7 +364,7 @@ static PyObject* setAccuracy(PyObject* self, PyObject* args)
 	default:
 		break;
 	}
-	return Py_BuildValue("i", 1); 
+	return Py_BuildValue("i", 1);
 }
 
 static PyObject* setFilter(PyObject* self, PyObject* args)
@@ -238,6 +415,36 @@ static PyObject* setLaserPower(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", 1);
 }
 
+static PyObject* getAccuracyDefault(PyObject* self, PyObject* args)
+{
+	PXCCapture::Device::IVCAMAccuracy res = cp->QueryIVCAMAccuracyDefaultValue();
+	if (res == PXCCapture::Device::IVCAM_ACCURACY_COARSE)
+		return Py_BuildValue("i", 0);
+	else if (res == PXCCapture::Device::IVCAM_ACCURACY_MEDIAN)
+		return Py_BuildValue("i", 1);
+	else if (res == PXCCapture::Device::IVCAM_ACCURACY_FINEST)
+		return Py_BuildValue("i", 2);
+	else
+		PyErr_SetString(RealSenseError, "camera returned unsuported accuracy");
+	return Py_BuildValue("i", res);
+}
+
+static PyObject* getFilterInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryIVCAMFilterOptionInfo());
+}
+
+static PyObject* getLaserPowerInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryIVCAMLaserPowerInfo());
+}
+
+static PyObject* getRangeInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryIVCAMMotionRangeTradeOffInfo());
+}
+
+
 //General functions
 static PyObject* getColorAutoExposure(PyObject* self, PyObject* args)
 {
@@ -259,9 +466,19 @@ static PyObject* getColorBackLightCompensation(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", cp->QueryColorBackLightCompensation());
 }
 
+static PyObject* getColorBackLightCompensationInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorBackLightCompensationInfo());
+}
+
 static PyObject* getColorBrightness(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("i", cp->QueryColorBrightness());
+}
+
+static PyObject* getColorBrightnessInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorBrightnessInfo());
 }
 
 static PyObject* getColorContrast(PyObject* self, PyObject* args)
@@ -269,14 +486,29 @@ static PyObject* getColorContrast(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", cp->QueryColorContrast());
 }
 
+static PyObject* getColorContrastInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorContrastInfo());
+}
+
 static PyObject* getColorExposure(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("i", cp->QueryColorExposure());
 }
 
+static PyObject* getColorExposureInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorExposureInfo());
+}
+
 static PyObject* getColorHue(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("i", cp->QueryColorHue());
+}
+
+static PyObject* getColorHueInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorHueInfo());
 }
 
 static PyObject* getColorFieldOfView(PyObject* self, PyObject* args)
@@ -307,15 +539,25 @@ static PyObject* getColorGain(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", cp->QueryColorGain());
 }
 
+static PyObject* getColorGainInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorGainInfo());
+}
+
 static PyObject* getColorGamma(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("i", cp->QueryColorGamma());
 }
 
+static PyObject* getColorGammaInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorGammaInfo());
+}
+
 static PyObject* getColorPowerLineFrequency(PyObject* self, PyObject* args)
 {
 	PXCCapture::Device::PowerLineFrequency val = cp->QueryColorPowerLineFrequency();
-	if (val== PXCCapture::Device::POWER_LINE_FREQUENCY_50HZ)
+	if (val == PXCCapture::Device::POWER_LINE_FREQUENCY_50HZ)
 		return Py_BuildValue("i", 50);
 	if (val == PXCCapture::Device::POWER_LINE_FREQUENCY_60HZ)
 		return Py_BuildValue("i", 60);
@@ -337,9 +579,19 @@ static PyObject* getColorSaturation(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", cp->QueryColorSaturation());
 }
 
+static PyObject* getColorSaturationInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorSaturationInfo());
+}
+
 static PyObject* getColorSharpness(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("i", cp->QueryColorSharpness());
+}
+
+static PyObject* getColorSharpnessInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorSharpnessInfo());
 }
 
 static PyObject* getColorWhiteBalance(PyObject* self, PyObject* args)
@@ -347,9 +599,19 @@ static PyObject* getColorWhiteBalance(PyObject* self, PyObject* args)
 	return Py_BuildValue("i", cp->QueryColorWhiteBalance());
 }
 
+static PyObject* getColorWhiteBalanceInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryColorWhiteBalanceInfo());
+}
+
 static PyObject* getDepthConfidenceThreshold(PyObject* self, PyObject* args)
 {
 	return Py_BuildValue("h", cp->QueryDepthConfidenceThreshold());
+}
+
+static PyObject* getDepthConfidenceThresholdInfo(PyObject* self, PyObject* args)
+{
+	return PropertyInfo2numPy(cp->QueryDepthConfidenceThresholdInfo());
 }
 
 static PyObject* getDepthFieldOfView(PyObject* self, PyObject* args)
@@ -421,7 +683,7 @@ static PyObject* setColorAutoExposure(PyObject* self, PyObject* args)
 {
 	int val;
 
-	if (!PyArg_ParseTuple(args, "p", &val))
+	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
 
 	sts = cp->SetColorAutoExposure(val);
@@ -434,7 +696,7 @@ static PyObject* setColorAutoWhiteBalance(PyObject* self, PyObject* args)
 {
 	int val;
 
-	if (!PyArg_ParseTuple(args, "p", &val))
+	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
 
 	sts = cp->SetColorAutoWhiteBalance(val);
@@ -447,7 +709,7 @@ static PyObject* setColorAutoPowerLineFrequency(PyObject* self, PyObject* args)
 {
 	int val;
 
-	if (!PyArg_ParseTuple(args, "p", &val))
+	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
 
 	sts = cp->SetColorAutoPowerLineFrequency(val);
@@ -462,10 +724,15 @@ static PyObject* setColorBackLightCompensation(PyObject* self, PyObject* args)
 
 	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
+	PXCCapture::Device::PropertyInfo info = cp->QueryColorBackLightCompensationInfo();
+	if (val < info.range.min)
+		val = info.range.min;
+	if (val > info.range.max)
+		val = info.range.max;
 
 	sts = cp->SetColorBackLightCompensation(val);
 	if (sts != PXC_STATUS_NO_ERROR)
-		PyErr_SetString(RealSenseError, "Failed to set power line freq of colour camera");
+		PyErr_SetString(RealSenseError, "Failed to set backlight compensation of colour camera");
 	return Py_BuildValue("i", 1);
 }
 
@@ -509,6 +776,11 @@ static PyObject* setColorExposure(PyObject* self, PyObject* args)
 
 	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
+	PXCCapture::Device::PropertyInfo info = cp->QueryColorExposureInfo();
+	if (val < info.range.min)
+		val = info.range.min;
+	if (val > info.range.max)
+		val = info.range.max;
 
 	sts = cp->SetColorExposure(val);
 	if (sts != PXC_STATUS_NO_ERROR)
@@ -556,6 +828,11 @@ static PyObject* setColorGain(PyObject* self, PyObject* args)
 
 	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
+	PXCCapture::Device::PropertyInfo info = cp->QueryColorGainInfo();
+	if (val < info.range.min)
+		val = info.range.min;
+	if (val > info.range.max)
+		val = info.range.max;
 
 	sts = cp->SetColorGain(val);
 	if (sts != PXC_STATUS_NO_ERROR)
@@ -572,8 +849,10 @@ static PyObject* setColorPowerLineFrequency(PyObject* self, PyObject* args)
 		return NULL;
 	if (val == 50)
 		opt = PXCCapture::Device::POWER_LINE_FREQUENCY_50HZ;
-	if (val == 60)
+	else if (val == 60)
 		opt = PXCCapture::Device::POWER_LINE_FREQUENCY_60HZ;
+	else
+		opt = PXCCapture::Device::POWER_LINE_FREQUENCY_DISABLED;
 
 	sts = cp->SetColorPowerLineFrequency(opt);
 	if (sts != PXC_STATUS_NO_ERROR)
@@ -620,6 +899,11 @@ static PyObject* setColorWhiteBalance(PyObject* self, PyObject* args)
 
 	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
+	PXCCapture::Device::PropertyInfo info = cp->QueryColorWhiteBalanceInfo();
+	if (val < info.range.min)
+		val = info.range.min;
+	if (val > info.range.max)
+		val = info.range.max;
 
 	sts = cp->SetColorWhiteBalance(val);
 	if (sts != PXC_STATUS_NO_ERROR)
@@ -633,6 +917,11 @@ static PyObject* setDepthConfidenceThreshold(PyObject* self, PyObject* args)
 
 	if (!PyArg_ParseTuple(args, "H", &val))
 		return NULL;
+	PXCCapture::Device::PropertyInfo info = cp->QueryDepthConfidenceThresholdInfo();
+	if (val < info.range.min)
+		val = info.range.min;
+	if (val > info.range.max)
+		val = info.range.max;
 
 	sts = cp->SetDepthConfidenceThreshold(val);
 	if (sts != PXC_STATUS_NO_ERROR)
@@ -655,7 +944,7 @@ static PyObject* setDepthUnit(PyObject* self, PyObject* args)
 
 static PyObject* setDeviceAllowProfileChange(PyObject* self, PyObject* args)
 {
-	int val;
+	bool val;
 
 	if (!PyArg_ParseTuple(args, "p", &val))
 		return NULL;
@@ -671,9 +960,9 @@ static PyObject* setMirrorMode(PyObject* self, PyObject* args)
 	int val;
 	PXCCapture::Device::MirrorMode opt;
 
-	if (!PyArg_ParseTuple(args, "p", &val))
+	if (!PyArg_ParseTuple(args, "i", &val))
 		return NULL;
-	if (val)
+	if (!val)
 		opt = PXCCapture::Device::MIRROR_MODE_DISABLED;
 	else
 		opt = PXCCapture::Device::MIRROR_MODE_HORIZONTAL;
@@ -717,12 +1006,9 @@ static PyObject* get(PyObject* self, PyObject* args)
 
 
 
-
-
-
 //stuff to link functions to python.
 
-PyMethodDef RealSenseMethods[] = 
+PyMethodDef RealSenseMethods[] =
 {
 	{ "getframe", (PyCFunction)getframes, METH_VARARGS },
 	{ "getdev", (PyCFunction)getDev, METH_VARARGS },
@@ -739,21 +1025,32 @@ PyMethodDef RealSenseMethods[] =
 	{ "getColorAutoPowerLineFrequency", (PyCFunction)getColorAutoPowerLineFrequency, METH_VARARGS },
 	{ "getColorAutoWhiteBalance", (PyCFunction)getColorAutoWhiteBalance, METH_VARARGS },
 	{ "getColorBackLightCompensation", (PyCFunction)getColorBackLightCompensation, METH_VARARGS },
+	{ "getColorBackLightCompensationInfo", (PyCFunction)getColorBackLightCompensationInfo, METH_VARARGS },
 	{ "getColorBrightness", (PyCFunction)getColorBrightness, METH_VARARGS },
+	{ "getColorBrightnessInfo", (PyCFunction)getColorBrightnessInfo, METH_VARARGS },
 	{ "getColorContrast", (PyCFunction)getColorContrast, METH_VARARGS },
+	{ "getColorContrastInfo", (PyCFunction)getColorContrastInfo, METH_VARARGS },
 	{ "getColorExposure", (PyCFunction)getColorExposure, METH_VARARGS },
+	{ "getColorExposureInfo", (PyCFunction)getColorExposureInfo, METH_VARARGS },
 	{ "getColorHue", (PyCFunction)getColorHue, METH_VARARGS },
+	{ "getColorHueInfo", (PyCFunction)getColorHueInfo, METH_VARARGS },
 	{ "getColorFieldOfView", (PyCFunction)getColorFieldOfView, METH_VARARGS },
 	{ "getColorFocalLength", (PyCFunction)getColorFocalLength, METH_VARARGS },
 	{ "getColorFocalLengthMM", (PyCFunction)getColorFocalLengthMM, METH_VARARGS },
 	{ "getColorGain", (PyCFunction)getColorGain, METH_VARARGS },
+	{ "getColorGainInfo", (PyCFunction)getColorGainInfo, METH_VARARGS },
 	{ "getColorGamma", (PyCFunction)getColorGamma, METH_VARARGS },
+	{ "getColorGammaInfo", (PyCFunction)getColorGammaInfo, METH_VARARGS },
 	{ "getColorPowerLineFrequency", (PyCFunction)getColorPowerLineFrequency, METH_VARARGS },
 	{ "getColorPrincipalPoint", (PyCFunction)getColorPrincipalPoint, METH_VARARGS },
 	{ "getColorSaturation", (PyCFunction)getColorSaturation, METH_VARARGS },
+	{ "getColorSaturationInfo", (PyCFunction)getColorSaturationInfo, METH_VARARGS },
 	{ "getColorSharpness", (PyCFunction)getColorSharpness, METH_VARARGS },
+	{ "getColorSharpnessInfo", (PyCFunction)getColorSharpnessInfo, METH_VARARGS },
 	{ "getColorWhiteBalance", (PyCFunction)getColorWhiteBalance, METH_VARARGS },
+	{ "getColorWhiteBalanceInfo", (PyCFunction)getColorWhiteBalanceInfo, METH_VARARGS },
 	{ "getDepthConfidenceThreshold", (PyCFunction)getDepthConfidenceThreshold, METH_VARARGS },
+	{ "getDepthConfidenceThresholdInfo", (PyCFunction)getDepthConfidenceThresholdInfo, METH_VARARGS },
 	{ "getDepthFieldOfView", (PyCFunction)getDepthFieldOfView, METH_VARARGS },
 	{ "getDepthFocalLength", (PyCFunction)getDepthFocalLength, METH_VARARGS },
 	{ "getDepthFocalLengthMM", (PyCFunction)getDepthFocalLengthMM, METH_VARARGS },
@@ -781,6 +1078,13 @@ PyMethodDef RealSenseMethods[] =
 	{ "setDepthUnit", (PyCFunction)setDepthUnit, METH_VARARGS },
 	{ "setDeviceAllowProfileChange", (PyCFunction)setDeviceAllowProfileChange, METH_VARARGS },
 	{ "setMirrorMode", (PyCFunction)setMirrorMode, METH_VARARGS },
+	{ "getCal", (PyCFunction)getCal, METH_VARARGS },
+	{ "getDepthAccuracyDefault", (PyCFunction)getAccuracyDefault, METH_VARARGS },
+	{ "getDepthFilterInfo", (PyCFunction)getFilterInfo, METH_VARARGS },
+	{ "getDepthLaserPowerInfo", (PyCFunction)getLaserPowerInfo, METH_VARARGS },
+	{ "getDepthRangeInfo", (PyCFunction)getRangeInfo, METH_VARARGS },
+	{ "getCoordinateSystem", (PyCFunction)getCoordinateSystem, METH_VARARGS },
+	{ "setCoordinateSystem", (PyCFunction)setCoordinateSystem, METH_VARARGS },
 
 
 	{0,0,0}
@@ -788,7 +1092,7 @@ PyMethodDef RealSenseMethods[] =
 	/*
 	{ "", (PyCFunction), METH_VARARGS },
 	*/
-}; 
+};
 
 PyMODINIT_FUNC
 initPyRealSense(void)
