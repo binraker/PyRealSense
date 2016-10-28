@@ -7,12 +7,18 @@ Created on Sat Jan 09 17:15:02 2016
 
 import cv2
 import PyRealSense
+from mayavi import mlab
 
-global  markerf
-Lp=16
-Filter=5
-Acc = 0
-range = 50
+#enums that need to go into lib
+Depth = 0
+IR = 1
+Color = 2
+
+comget = PyRealSense.getDepthLaserPower
+comset = PyRealSense.setDepthLaserPower
+comname = ' depth laser power'
+cominc = 1
+
 if __name__ == '__main__':
   
     PyRealSense.getdev()
@@ -51,42 +57,121 @@ if __name__ == '__main__':
     print(PyRealSense.getDepthUnit())
     print(PyRealSense.getMirrorMode())
     while True:         
-        
-        frame = PyRealSense.getframe()
-        
-        cv2.namedWindow("Depth")
-        cv2.imshow('Depth', frame[0]/1000)
-        cv2.namedWindow("RGB")
-        cv2.imshow('RGB', frame[2])
-        cv2.namedWindow("IR")
-        cv2.imshow('IR', frame[1])
+        try:
+            frame = PyRealSense.getframe()
+            depth = frame[0]
+            depth = depth/depth.max()
+           # depth_color = cv2.applyColorMap(depth, cv2.COLORMAP_JET) 
+            
+            cv2.namedWindow("Depth")
+            cv2.imshow('Depth', depth)
+            cv2.namedWindow("RGB")
+            cv2.imshow('RGB', frame[2])
+            cv2.namedWindow("IR")
+            cv2.imshow('IR', frame[1])
     
-        key = cv2.waitKey(1)
-        if key & 0xFF == ord('q'):
-            break
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q'):
+                break
 
-        if key & 0xFF == ord('s'):
-            PyRealSense.setDepthLaserPower(PyRealSense.getDepthLaserPower() - 1)
-        if key & 0xFF == ord('w'):
-            PyRealSense.setDepthLaserPower(PyRealSense.getDepthLaserPower() + 1)
+            if key & 0xFF == ord('w'):
+                comget = PyRealSense.getDepthLaserPower
+                comset = PyRealSense.setDepthLaserPower
+                comname = "depth laser Power"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('e'):
+                comget = PyRealSense.getDepthFilter
+                comset = PyRealSense.setDepthFilter
+                comname = "depth filter"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('r'):
+                comget = PyRealSense.getDepthAccuracy
+                comset = PyRealSense.setDepthAccuracy
+                comname = "depth accuracy"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('t'):
+                comget = PyRealSense.getDepthRange
+                comset = PyRealSense.setDepthRange
+                comname = "depth range"
+                cominc = 5
+                print([comname, comget()])
+            if key & 0xFF == ord('p'):
+                comget = PyRealSense.getColorBackLightCompensation
+                comset = PyRealSense.setColorBackLightCompensation
+                comname = "backlight comp"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('a'):
+                comget = PyRealSense.getColorBrightness
+                comset = PyRealSense.setColorBrightness
+                comname = "brightness"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('s'):
+                comget = PyRealSense.getColorContrast
+                comset = PyRealSense.setColorContrast
+                comname = "contrast"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('d'):
+                comget = PyRealSense.getColorHue
+                comset = PyRealSense.setColorHue
+                comname = "hue"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('f'):
+                comget = PyRealSense.getColorGamma
+                comset = PyRealSense.setColorGamma
+                comname = "gamma"
+                cominc = 1
+                print([comname, comget()])
+            if key & 0xFF == ord('g'):
+                comget = PyRealSense.getColorGain
+                comset = PyRealSense.setColorGain
+                comname = "gain"
+                cominc = 1
+                print([comname, comget()])
 
-        if key & 0xFF == ord('d'):
-            PyRealSense.setDepthFilter(PyRealSense.getDepthFilter() - 1)
-        if key & 0xFF == ord('e'):
-            PyRealSense.setDepthFilter(PyRealSense.getDepthFilter() + 1)
 
-        if key & 0xFF == ord('f'):
-            PyRealSense.setDepthAccuracy(PyRealSense.getDepthAccuracy() - 1)
-        if key & 0xFF == ord('r'):
-            PyRealSense.setDepthAccuracy(PyRealSense.getDepthAccuracy() + 1)
+            
 
-        if key & 0xFF == ord('g'):
-            PyRealSense.setDepthRange(PyRealSense.getDepthRange() - 1)
-        if key & 0xFF == ord('t'):
-            PyRealSense.setDepthRange(PyRealSense.getDepthRange() + 1)
 
-        if key & 0xFF == ord('p'):
-            print ([Lp,Filter, Acc])
+            if key & 0xFF == ord('y'):
+                PyRealSense.setColorAutoExposure(not(PyRealSense.getColorAutoExposure()))
+                print(["colour autoexposure", PyRealSense.getColorAutoExposure()])
+            if key & 0xFF == ord('u'):
+               PyRealSense.setColorAutoWhiteBalance(not(PyRealSense.getColorAutoWhiteBalance()))
+               print(["colour auto whiteballance", PyRealSense.getColorAutoWhiteBalance()])
+            if key & 0xFF == ord('i'):
+               PyRealSense.setColorAutoPowerLineFrequency(not(PyRealSense.getColorAutoPowerLineFrequency()))
+               print(["Auto power line frequency", PyRealSense.getColorAutoPowerLineFrequency()])     
+            if key & 0xFF == ord('o'):
+               PyRealSense.setMirrorMode(not(PyRealSense.getMirrorMode()))
+               print(["Mirror mode", PyRealSense.getMirrorMode()])     
+            
+
+            if key & 0xFF == ord('z'):
+                comset(comget() - cominc)
+                print([comname, comget()])
+            if key & 0xFF == ord('x'):
+                comset(comget() + cominc)
+                print([comname, comget()])
+
+            if key & 0xFF == ord('/'):
+                print(PyRealSense.getCal(0),)
+                print(PyRealSense.getCal(1),"\n")
+                print(PyRealSense.getCal(2),"\n")
+
+
+        except Exception as inst:
+            print(type(inst))    # the exception instance
+            print(inst.args)     # arguments stored in .args
+            print(inst)
+
+
 
 
     # When everything done, release the capture
